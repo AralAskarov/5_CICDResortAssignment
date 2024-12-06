@@ -4,3 +4,6 @@ to see Token use
 ```bash
 sudo cat /etc/vault/root_token
 ```
+To check status systemd service
+
+    sudo systemctl status vault.service
