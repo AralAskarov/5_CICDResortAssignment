@@ -6,7 +6,6 @@ if [ "$EUID" -ne 0 ]; then
   echo "Please run as root"
   exit 1
 fi
-export VAULT_ADDR="https://vault.medhelper.xyz:8200"
 VAULT_VERSION="1.18.2"
 VAULT_BIN_PATH="/usr/local/bin/vault"
 VAULT_CONFIG_PATH="/etc/vault"
@@ -103,6 +102,7 @@ initialize_and_unseal_vault() {
     echo "Vault is already initialized and unsealed."
     return
   fi
+  export VAULT_ADDR="https://vault.medhelper.xyz:8200"
 
   echo "Initializing Vault..."
   INIT_OUTPUT=$(vault operator init -key-shares=1 -key-threshold=1 -format=json)
