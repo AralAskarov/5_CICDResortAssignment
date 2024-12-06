@@ -109,7 +109,7 @@ initialize_and_unseal_vault() {
   INIT_OUTPUT=$(vault operator init -key-shares=5 -key-threshold=3 -format=json -address="https://vault.medhelper.xyz:8200")
 
   ROOT_TOKEN=$(echo "$INIT_OUTPUT" | jq -r '.root_token')
-  UNSEAL_KEYS=$(echo "$INIT_OUTPUT" | jq -r '.unseal_keys_b64[0]')
+  UNSEAL_KEYS=$(echo "$INIT_OUTPUT" | jq -r '.unseal_keys_b64')
 
   echo "Unsealing Vault..."
   # vault operator unseal "$UNSEAL_KEY"
