@@ -113,7 +113,7 @@ initialize_and_unseal_vault() {
 
   echo "Unsealing Vault..."
   # vault operator unseal "$UNSEAL_KEY"
-  or i in $(seq 0 2); do
+  for i in $(seq 0 2); do
     UNSEAL_KEY=$(echo "$UNSEAL_KEYS" | jq -r ".[$i]")
     vault operator unseal "$UNSEAL_KEY"
   done
