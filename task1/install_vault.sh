@@ -98,6 +98,7 @@ EOF
 
 #initialize and unseal Vault
 initialize_and_unseal_vault() {
+  sleep 5
   if [ -f "$VAULT_DATA_PATH/initialized" ]; then
     echo "Vault is already initialized and unsealed."
     return
@@ -105,7 +106,7 @@ initialize_and_unseal_vault() {
   export VAULT_ADDR="https://vault.medhelper.xyz:8200"
 
   echo "Initializing Vault..."
-  INIT_OUTPUT=$(vault operator init -key-shares=1 -key-threshold=1 -format=json)
+  INIT_OUTPUT=$(vault operator init -key-shares=1 -key-threshold=1 -format=json -address="https://vault.medhelper.xyz:8200)
 
   ROOT_TOKEN=$(echo "$INIT_OUTPUT" | jq -r '.root_token')
   UNSEAL_KEY=$(echo "$INIT_OUTPUT" | jq -r '.unseal_keys_b64[0]')
