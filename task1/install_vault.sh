@@ -6,7 +6,7 @@ if [ "$EUID" -ne 0 ]; then
   echo "Please run as root"
   exit 1
 fi
-
+export VAULT_ADDR="https://vault.medhelper.xyz:8200"
 VAULT_VERSION="1.18.2"
 VAULT_BIN_PATH="/usr/local/bin/vault"
 VAULT_CONFIG_PATH="/etc/vault"
@@ -53,11 +53,15 @@ listener "tcp" {
 
 ui = true
 
-api_addr = "https://medhelper.xyz:8200"
+api_addr = "https://vault.medhelper.xyz:8200"
 cluster_addr = "https://vault.medhelper.xyz:8201"
 EOF
 
   chmod 600 "$VAULT_CONFIG_PATH/vault.hcl"
+  mkdir -p /etc/vault/tls
+  cp /etc/letsencrypt/live/vault.medhelper.xyz/fullchain.pem /etc/vault/tls/cert.pem
+  cp /etc/letsencrypt/live/vault.medhelper.xyz/privkey.pem /etc/vault/tls/key.pem
+  chmod 600 /etc/vault/tls/*
 }
 
 setup_vault_service() {
