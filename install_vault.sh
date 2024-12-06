@@ -7,6 +7,8 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+export VAULT_ADDR="https://vault.medhelper.xyz:8200"
+
 VAULT_VERSION="1.18.2"
 VAULT_BIN_PATH="/usr/local/bin/vault"
 VAULT_CONFIG_PATH="/etc/vault"
