@@ -68,7 +68,8 @@ EOF
   mkdir -p "$config_path/tls"
   cp /etc/letsencrypt/live/$DOMAIN/fullchain.pem "$config_path/tls/cert.pem"
   cp /etc/letsencrypt/live/$DOMAIN/privkey.pem "$config_path/tls/key.pem"
-  chmod 600 "$config_path/tls/*"
+  chmod 600 $config_path/tls/*
+
 }
 
 
