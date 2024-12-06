@@ -120,9 +120,9 @@ initialize_and_unseal_vault() {
 
   echo "Storing root token and unseal key securely..."
   echo "$ROOT_TOKEN" > "$VAULT_CONFIG_PATH/root_token"
-  echo "$UNSEAL_KEY" > "$VAULT_CONFIG_PATH/unseal_key"
+  echo "$UNSEAL_KEYS" > "$VAULT_CONFIG_PATH/unseal_keys"
 
-  chmod 600 "$VAULT_CONFIG_PATH/root_token" "$VAULT_CONFIG_PATH/unseal_key"
+  chmod 600 "$VAULT_CONFIG_PATH/root_token" "$VAULT_CONFIG_PATH/unseal_keys"
   touch "$VAULT_DATA_PATH/initialized"
 }
 
