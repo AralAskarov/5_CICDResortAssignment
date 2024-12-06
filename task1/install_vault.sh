@@ -6,16 +6,22 @@ if [ "$EUID" -ne 0 ]; then
   echo "Please run as root"
   exit 1
 fi
+
 VAULT_VERSION="1.18.2"
 VAULT_BIN_PATH="/usr/local/bin/vault"
-VAULT_CONFIG_PATH="/etc/vault"
-VAULT_DATA_PATH="/var/lib/vault"
-VAULT_SERVICE_FILE="/etc/systemd/system/vault.service"
+VAULT_BASE_PATH="/etc/vault"
+VAULT_DATA_BASE_PATH="/var/lib/vault"
+VAULT_SERVICE_BASE_FILE="/etc/systemd/system/vault"
+INSTANCE_NAME=${1:-"default"}
+PORT=${2:-8200}
+CLUSTER_PORT=${3:-8201}
+DOMAIN=${4:-"localhost"}
+
 
 install_dependencies() {
   echo "Installing required dependencies..."
   apt-get update -qq
-  apt-get install -y -qq wget unzip
+  apt-get install -y -qq wget unzip jq
 }
 
 install_vault() {
@@ -33,46 +39,53 @@ install_vault() {
   echo "Vault installed at $(vault --version)"
 }
 
-
 configure_vault() {
-  echo "Configuring Vault..."
-  mkdir -p "$VAULT_CONFIG_PATH" "$VAULT_DATA_PATH"
-  chmod 700 "$VAULT_DATA_PATH"
+  local config_path="$VAULT_BASE_PATH/$INSTANCE_NAME"
+  local data_path="$VAULT_DATA_BASE_PATH/$INSTANCE_NAME"
 
-  cat > "$VAULT_CONFIG_PATH/vault.hcl" <<EOF
+  echo "Configuring Vault instance '$INSTANCE_NAME'..."
+  mkdir -p "$config_path" "$data_path"
+  chmod 700 "$data_path"
+
+  cat > "$config_path/vault.hcl" <<EOF
 storage "file" {
-  path = "$VAULT_DATA_PATH"
+  path = "$data_path"
 }
 
 listener "tcp" {
-  address     = "0.0.0.0:8200"
-  tls_cert_file = "/etc/vault/tls/cert.pem"
-  tls_key_file  = "/etc/vault/tls/key.pem"
+  address     = "0.0.0.0:$PORT"
+  tls_cert_file = "$config_path/tls/cert.pem"
+  tls_key_file  = "$config_path/tls/key.pem"
 }
 
 ui = true
 
-api_addr = "https://vault.medhelper.xyz:8200"
-cluster_addr = "https://vault.medhelper.xyz:8201"
+api_addr = "https://$DOMAIN:$PORT"
+cluster_addr = "https://$DOMAIN:$CLUSTER_PORT"
 EOF
 
-  chmod 600 "$VAULT_CONFIG_PATH/vault.hcl"
-  mkdir -p /etc/vault/tls
-  cp /etc/letsencrypt/live/vault.medhelper.xyz/fullchain.pem /etc/vault/tls/cert.pem
-  cp /etc/letsencrypt/live/vault.medhelper.xyz/privkey.pem /etc/vault/tls/key.pem
-  chmod 600 /etc/vault/tls/*
+  chmod 600 "$config_path/vault.hcl"
+  mkdir -p "$config_path/tls"
+  cp /etc/letsencrypt/live/$DOMAIN/fullchain.pem "$config_path/tls/cert.pem"
+  cp /etc/letsencrypt/live/$DOMAIN/privkey.pem "$config_path/tls/key.pem"
+  chmod 600 "$config_path/tls/*"
 }
 
+
+
 setup_vault_service() {
-  if [ -f "$VAULT_SERVICE_FILE" ]; then
-    echo "Vault service is already configured."
+  local config_path="$VAULT_BASE_PATH/$INSTANCE_NAME"
+  local service_file="$VAULT_SERVICE_BASE_FILE-$INSTANCE_NAME.service"
+
+  if [ -f "$service_file" ]; then
+    echo "Vault service for instance '$INSTANCE_NAME' is already configured."
     return
   fi
 
-  echo "Setting up Vault as a systemd service..."
-  cat > "$VAULT_SERVICE_FILE" <<EOF
+  echo "Setting up Vault service for instance '$INSTANCE_NAME'..."
+  cat > "$service_file" <<EOF
 [Unit]
-Description=HashiCorp Vault - A tool for managing secrets
+Description=HashiCorp Vault Instance - $INSTANCE_NAME
 Documentation=https://www.vaultproject.io/docs/
 Requires=network-online.target
 After=network-online.target
@@ -80,7 +93,7 @@ After=network-online.target
 [Service]
 User=root
 Group=root
-ExecStart=$VAULT_BIN_PATH server -config=$VAULT_CONFIG_PATH/vault.hcl
+ExecStart=$VAULT_BIN_PATH server -config=$VAULT_BASE_PATH/$INSTANCE_NAME/vault.hcl
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=process
 Restart=on-failure
@@ -90,46 +103,48 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 EOF
 
-  chmod 644 "$VAULT_SERVICE_FILE"
+  chmod 644 "$service_file"
   systemctl daemon-reload
-  systemctl enable vault
-  systemctl start vault
+  systemctl enable "vault-$INSTANCE_NAME"
+  systemctl start "vault-$INSTANCE_NAME"
 }
 
-#initialize and unseal Vault
 initialize_and_unseal_vault() {
+  local config_path="$VAULT_BASE_PATH/$INSTANCE_NAME"
+  local data_path="$VAULT_DATA_BASE_PATH/$INSTANCE_NAME"
+
+  export VAULT_ADDR="https://$DOMAIN:$PORT"
   sleep 5
-  if [ -f "$VAULT_DATA_PATH/initialized" ]; then
-    echo "Vault is already initialized and unsealed."
+  if [ -f "$data_path/initialized" ]; then
+    echo "Vault instance '$INSTANCE_NAME' is already initialized and unsealed."
     return
   fi
-  export VAULT_ADDR="https://vault.medhelper.xyz:8200"
 
-  echo "Initializing Vault..."
-  INIT_OUTPUT=$(vault operator init -key-shares=5 -key-threshold=3 -format=json -address="https://vault.medhelper.xyz:8200")
+  echo "Initializing Vault instance '$INSTANCE_NAME'..."
+  INIT_OUTPUT=$(vault operator init -key-shares=5 -key-threshold=3 -format=json -address="https://$DOMAIN:$PORT")
 
   ROOT_TOKEN=$(echo "$INIT_OUTPUT" | jq -r '.root_token')
-  UNSEAL_KEYS=$(echo "$INIT_OUTPUT" | jq -r '.unseal_keys_b64')
+  UNSEAL_KEYS=$(echo "$INIT_OUTPUT" | jq -c '.unseal_keys_b64')
 
-  echo "Unsealing Vault..."
-  # vault operator unseal "$UNSEAL_KEY"
+  echo "Unsealing Vault instance '$INSTANCE_NAME'..."
   for i in $(seq 0 2); do
     UNSEAL_KEY=$(echo "$UNSEAL_KEYS" | jq -r ".[$i]")
     vault operator unseal "$UNSEAL_KEY"
   done
 
-  echo "Storing root token and unseal key securely..."
-  echo "$ROOT_TOKEN" > "$VAULT_CONFIG_PATH/root_token"
-  echo "$UNSEAL_KEYS" > "$VAULT_CONFIG_PATH/unseal_keys"
+  echo "Storing root token and unseal keys securely for instance '$INSTANCE_NAME'..."
+  echo "$ROOT_TOKEN" > "$config_path/root_token"
+  echo "$UNSEAL_KEYS" > "$config_path/unseal_keys"
 
-  chmod 600 "$VAULT_CONFIG_PATH/root_token" "$VAULT_CONFIG_PATH/unseal_keys"
-  touch "$VAULT_DATA_PATH/initialized"
+  chmod 600 "$config_path/root_token" "$config_path/unseal_keys"
+  touch "$data_path/initialized"
 }
 
+# Main script
 install_dependencies
 install_vault
 configure_vault
 setup_vault_service
 initialize_and_unseal_vault
 
-echo "Vault installation and setup complete."
+echo "Vault instance '$INSTANCE_NAME' has been installed and configured."

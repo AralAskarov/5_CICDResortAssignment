@@ -1,18 +1,19 @@
 #!/bin/bash
 
-sudo systemctl stop vault
+INSTANCE_NAME=$1
 
-sudo rm -f /etc/systemd/system/vault.service
+sudo systemctl stop vault-$INSTANCE_NAME
+
+sudo rm -f /etc/systemd/system/vault-$INSTANCE_NAME.service
 
 sudo systemctl daemon-reload
 
 sudo rm -f /usr/local/bin/vault
 
-sudo rm -rf /etc/vault
+sudo rm -rf /etc/vault/$INSTANCE_NAME
 
-sudo rm -rf /var/lib/vault
+sudo rm -rf /var/lib/vault/$INSTANCE_NAME
 
-sudo rm -rf /etc/vault/tls
+sudo rm -rf /etc/vault/$INSTANCE_NAME/tls
 
-sudo rm -rf /var/log/vault
-
+sudo rm -rf /var/log/vault/$INSTANCE_NAME
